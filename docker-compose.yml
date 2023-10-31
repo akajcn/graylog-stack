@@ -1,0 +1,70 @@
+# docker-compose criado por Jose Carlos Neto <jose.neto@irriga.net> @ 30/10/2023
+version: '3'
+services:
+  # Criacao do servico do MongoDB
+  mongo:
+    image: mongo:5.0.13
+    networks:
+      - graylog_observ
+    volumes:
+      - mongo:/data/db
+  # Criacao do servico do ElasticSearch
+  elasticsearch:
+    image:  docker.elastic.co/elasticsearch/elasticsearch-oss:7.10.2
+    volumes:
+      - elasticsearch:/usr/share/elasticsearch/data
+    environment:
+      - http.host=0.0.0.0
+      - transport=localhost
+      - network.host=0.0.0.0
+      - discovery.type=single-node
+      - discovery.seed_hosts=[]
+      - "ES_JAVA_OPTS=-Dlog4j2.formatMsgNoLookups=true -Xms512m -Xmx512m"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    deploy:
+        resources:
+          limits:
+            memory: 1g
+    networks:
+      - graylog_observ
+  # Criacao do servico do Graylog
+  graylog:
+    image:  graylog/graylog:5.0
+    volumes:
+      - data:/usr/share/graylog/data/journal
+    environment:
+      - TZ=America/Sao_Paulo
+      - GRAYLOG_PASSWORD_SECRET=6Ee5*%u2~R0j|lXb
+      # Password: admin
+      - GRAYLOG_ROOT_PASSWORD_SHA2=e8e8067c23d68c673cf8df2e5be8d66add2a46ed030d17accf42acff14248581
+      - GRAYLOG_HTTP_EXTERNAL_URI=http://127.0.0.1:9001/
+      - GRAYLOG_ELASTICSEARCH_INDEX_PREFIX=graylog
+    entrypoint: /usr/bin/tini -- wait-for-it elasticsearch:9200 -- /docker-entrypoint.sh
+    networks:
+      - graylog_observ
+    depends_on:
+      - mongo
+      - elasticsearch
+    ports:
+    # Graylog web interface
+      - 9001:9000
+    # Syslog TCP
+      - 1514:1514
+    # Syslog UDP
+      - 1514:1514/udp
+    # GELF TCP
+      - 12201:12201
+    # GELF UDP
+      - 12201:12201/udp
+# Declaracao da interface de rede
+networks:
+  graylog_observ:
+    driver: bridge
+# Declarcao dos volumes
+volumes:
+  data: {}
+  elasticsearch: {}
+  mongo: {}
